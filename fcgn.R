@@ -124,24 +124,24 @@ input_tensor <- layer_input(shape = c(256, 256, 3))
 output_tensor <- input_tensor %>%
   
   # 1
-  # 128*128
+  # 256, 256, 64
   layer_conv_2d(
     filters = 64,
     kernel_size = c(7, 7),
     padding = "same",
-    strides = c(2, 2)
+    strides = c(1, 1)
   ) %>%
   layer_batch_normalization() %>%
   layer_activation_elu() %>%
   
   # 2
-  # 64*64*64
+  #  128, 128, 64
   layer_max_pooling_2d(pool_size = c(3, 3),
                        strides = c(2, 2),
                        padding = "same") %>%
   
   # 3
-  # 64*64*64
+  #  128, 128, 64
   layer_conv_2d(filters = 64,
                 kernel_size = c(1, 1),
                 padding = "same") %>%
@@ -149,15 +149,15 @@ output_tensor <- input_tensor %>%
   layer_activation_elu() %>%
   
   # 4
-  # 64*64*192
+  #  128, 128, 192
   layer_conv_2d(filters = 192,
-                kernel_size = c(3, 3),
+                kernel_size = c(1, 1),
                 padding = "same") %>%
   layer_batch_normalization() %>%
   layer_activation_elu() %>%
   
   # 5
-  # 32*32*192
+  # 64, 64, 192
   layer_max_pooling_2d(pool_size = c(3, 3),
                        strides = c(2, 2),
                        padding = "same")
@@ -165,7 +165,6 @@ output_tensor <- input_tensor %>%
 output_tensor
 
 # 6
-# 32*32*256
 output_tensor <- output_tensor %>%
   inception_module(
     path1 = list(kernel_size = 1, filters = 64),
@@ -185,7 +184,6 @@ output_tensor <- output_tensor %>%
   ) %>%
   
   # 7
-  # 32*32*256
   inception_module(
     path1 = list(kernel_size = 1, filters = 64),
     path2 = list(
@@ -204,7 +202,6 @@ output_tensor <- output_tensor %>%
   ) %>%
   
   # 8
-  # 32*32*512
   inception_module(
     path1 = NULL,
     path2 = list(
@@ -221,11 +218,9 @@ output_tensor <- output_tensor %>%
   ) %>%
 
   # 9
-  # 16*16*512
   layer_max_pooling_2d(pool_size = c(3, 3), strides = c(2, 2), padding = "same") %>%
 
   # 10
-  # 16*16*576
   inception_module(
     path1 = list(kernel_size = 1, filters = 224),
     path2 = list(
@@ -244,7 +239,6 @@ output_tensor <- output_tensor %>%
   ) %>%
 
   # 11
-  # 16*16*576
   inception_module(
     path1 = list(kernel_size = 1, filters = 192),
     path2 = list(
@@ -263,7 +257,6 @@ output_tensor <- output_tensor %>%
   ) %>%
 
   # 12
-  #16*16*576
   inception_module(
     path1 = list(kernel_size = 1, filters = 160),
     path2 = list(
@@ -282,7 +275,6 @@ output_tensor <- output_tensor %>%
   ) %>%
 
   # 13
-  # 16*16*576
   inception_module(
     path1 = list(kernel_size = 1, filters = 96),
     path2 = list(
@@ -301,12 +293,12 @@ output_tensor <- output_tensor %>%
   )
 
 # skip connection
+# 32, 32, 576
 output_skip <- output_tensor
 
-output <- output_tensor %>%
+output_tensor <- output_tensor %>%
 
   # 14
-  # 16*16*576
   inception_module(
     path1 = NULL,
     path2 = list(
@@ -323,11 +315,9 @@ output <- output_tensor %>%
   ) %>%
   
   # 15
-  # 16*16*576
-  layer_max_pooling_2d(pool_size = c(3, 3), strides = c(2, 2)) %>%
+  layer_max_pooling_2d(pool_size = c(3, 3), strides = c(2, 2), padding = "same") %>%
 
   # 16
-  # 16*16*576
   inception_module(
     path1 =  list(kernel_size = 1, filters = 352),
     path2 = list(
@@ -346,7 +336,6 @@ output <- output_tensor %>%
   ) %>%
 
   # 17
-  # 16*16*576
   inception_module(
     path1 = list(kernel_size = 1, filters = 352),
     path2 = list(
@@ -362,22 +351,51 @@ output <- output_tensor %>%
       p = list(pooling = "max", poolsize = 3),
       c = list(kernel_size = 1, filters = 128)
     )
-  ) %>%
+  ) 
 
-  # 18
-  # 16*16*576
-  layer_conv_2d(filters = 192, kernel_size = c(3, 3)) %>%
+output_tensor <- output_tensor %>% 
+  # upsample before concatenate
+  layer_deconv_2d(filters = 192, kernel_size = c(3, 3)) %>%
   layer_batch_normalization() %>%
   layer_activation_elu()
 
 
 output_tensor
+
+# TBD
+# TBD deconv/upsampling
  
- # don't add as in resnet, concatenate on depth dimension!
-# output_tensor <- layer_add(list(output_skip, output_tensor))
+# don't add as in resnet, concatenate on depth dimension!
+# We upsample the feature maps from layer 17 to the resolution of the feature maps from layer 13
+# by a deconvolution filter of both size and stride 2.
+
 # 16*16*1152
 output_tensor <- layer_concatenate(list(output_skip, output_tensor))
 
+# TBD
+# We also use spatial drop out before upsampling to further regularize our network.
+#model:add(nn.SpatialDropout(0.4))
+
+# NOT IMPLEMENTED (half-res FCGN)
+# Our main multi-resolution network uses two FCGN with shared weights, where each FCGN takes the same image
+# at a different resolution and pro#  duces coarse feature maps as described above.
+# The feature maps from the Half Res Image FCGN are upsampled to the resolution of Full Res Image FCGN feature maps
+# by a deconvolution filter of both stride and filter size of 2.
+
+# TBD
+# UPSAMPLING FOR GROUND TRUTH COMPARISON
+# NEED 14 FEATURE MAPS ONE FOR EACH JOINT
+# model:add(nn.SpatialFullConvolution(576*4,trainData.joints,32,32,16,16,8,8))
+# 
+# The coarse feature maps from HalfRes FCGN and FullRes FCGN are then directly upsampled to belief maps 
+# for different body joints by using a larger deconvolution filter of size 32 and stride 16. 
+# By using deconvolution filter of size 32 we automatically exploit the context of neighbouring pixels in coarse
+# feature maps for predicting belief maps for joints.
+
+# ACTIVATION FUNCTION
+# The belief maps are then normalized by using a sigmoid. 
+# model:add(nn.Sigmoid())
+# make sure softmax gets data in correct dims
 
 model <- keras_model(input_tensor, output_tensor)
 model %>% summary()

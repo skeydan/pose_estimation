@@ -64,6 +64,35 @@ joints[ , , 1]
 # generating warps and then only select the warps for which all warped joints end up inside
 # the image boundary.
 
+n_samples <- dim(joints)[3]
 
+set.seed(1234)
+train_indices <- sample(1:n_samples, size = n_samples * 0.7)
+valid_and_train <- setdiff(1:n_samples, train_indices)
+valid_indices <- sample(valid_and_train, size = length(valid_and_train) * 0.5)
+test_indices <- setdiff(valid_and_train, valid_indices)
 
+num_train <- length(train_indices)
+num_valid <- length(valid_indices)
+num_test <- length(test_indices)
 
+batch_size <- 10
+
+c(num_train, num_valid, num_test)
+
+generator <- function(type) {
+  
+  base_indices <- switch(type,
+                         "train" = train_indices,
+                         "valid" = valid_indices,
+                         "test" = test_indices)
+  
+ 
+  gen <- function() {
+    sampled <- sample(base_indices, batch_size)
+    
+    # TBD Gaussian ground truth for each of joints
+    # The belief map represents a binary image containing a disk of 1’s with radius ’r’ centred 
+    # at the ground-truth (x, y) location of joint j and zero elsewhere
+  }
+}
